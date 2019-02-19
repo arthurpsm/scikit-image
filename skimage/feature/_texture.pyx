@@ -92,8 +92,68 @@ cdef inline int _bit_rotate_right(int value, int length) nogil:
     return (value >> 1) | ((value & 1) << (length - 1))
 
 
+def _ntu_spectrum(double[:, ::1] image,
+                          double delta):
+    Parameters
+    ----------
+    image : (N, M) double array
+        Graylevel image.
+    delta : double
+        threshold value for texture unit classification
+
+    Returns
+    -------
+    output : (N, M) array
+        NTU image.
+    """
+    # texture weights
+    cdef int[::1] weights = 3 ** np.arange(8, dtype=np.int32)
+    # local position of texture elements
+    rr = - 1 * np.sin(2 * np.pi * np.arange(8, dtype=np.double) / 8)
+    cc = 1 * np.cos(2 * np.pi * np.arange(8, dtype=np.double) / 8)
+    cdef double[::1] rp = np.round(rr, 5)
+    cdef double[::1] cp = np.round(cc, 5)
+
+    # pre-allocate arrays for computation
+    cdef double[::1] texture = np.zeros(8, dtype=np.double)
+    cdef signed char[::1] signed_texture = np.zeros(8, dtype=np.int8)
+
+    output_shape = (image.shape[0], image.shape[1])
+    cdef double[:, ::1] output = np.zeros(output_shape, dtype=np.double)
+
+    cdef Py_ssize_t rows = image.shape[0]
+    cdef Py_ssize_t cols = image.shape[1]
+
+    cdef double ntu
+    cdef Py_ssize_t r, c, i
+
+    with nogil:
+        for r in range(10, image.shape[0] - 10):
+            for c in range(10, image.shape[1] - 10):
+                for i in range(8):
+                    texture[i] = bilinear_interpolation(&image[0, 0], rows, cols,
+                                                        r + rp[i], c + cp[i],
+                                                        b'C', 0)
+                # signed / thresholded texture
+                for i in range(8):
+                    if texture[i] - image[r, c] <= -delta:
+                        signed_texture[i] = 0
+                    elif texture[i] - image[r, c] > delta:
+                        signed_texture[i] = 2
+                    else:
+                        signed_texture[i] = 1
+
+                ntu = 0
+
+                for i in range(8):
+                    ntu += signed_texture[i] * weights[i]
+
+                output[r, c] = ntu
+
+    return np.asarray(output)
+
 def _local_binary_pattern(double[:, ::1] image,
-                          int P, float R, char method=b'D'):
+                           P, float R, char method=b'D'):
     """Gray scale and rotation invariant LBP (Local Binary Patterns).
 
     LBP is an invariant descriptor that can be used for texture classification.

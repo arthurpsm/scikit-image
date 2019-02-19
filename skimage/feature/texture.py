@@ -9,7 +9,7 @@ from ..util import img_as_float
 from ..color import gray2rgb
 from ._texture import (_glcm_loop,
                        _local_binary_pattern,
-                       _multiblock_lbp)
+                       _multiblock_lbp, _ntu_spectrum)
 
 
 def greycomatrix(image, distances, angles, levels=None, symmetric=False,
@@ -328,6 +328,15 @@ def local_binary_pattern(image, P, R, method='default'):
     image = np.ascontiguousarray(image, dtype=np.double)
     output = _local_binary_pattern(image, P, R, methods[method.lower()])
     return output
+
+
+def ntu_spectrum(image, delta):
+
+    assert_nD(image, 2)
+
+    image = np.ascontiguousarray(image, dtype=np.double)
+    output = _ntu_spectrum(image, delta)
+    return output[10:(output.shape[0] - 10), 10:(output.shape[1] - 10)]
 
 
 def multiblock_lbp(int_image, r, c, width, height):
